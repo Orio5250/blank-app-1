@@ -1,9 +1,3 @@
-word,mean,explanation,level
-"ガウスの法則",$\oint \mathbf{E} \cdot d\mathbf{A} = \frac{Q}{\varepsilon_0}$,"閉曲面を貫く電束の総量は、内部の電荷に比例するという法則です。",1
-"オームの法則",$V = RI$,"電圧は電流と抵抗の積に等しいという回路の基本法則です。",1
-"静電エネルギー","$U = \frac{1}{2}CV^2$","コンデンサに蓄えられるエネルギーの式です。",1
-"磁束密度の単位",テスラ [T],"磁界の強さを表す単位で、1T = 1N/(A・m) です。",1
-"誘電率の単位","[F/m]","ファラド毎メートル。真空の誘電率は $8.85 \times 10^{-12}$ です。",1
 import streamlit as st
 import pandas as pd
 import sqlite3
