@@ -39,7 +39,7 @@ def get_data(mode='all'):
 
 # --- UI設定 ---
 st.set_page_config(page_title="電磁気学マスター", layout="centered")
-st.title("⚡️ 電磁気学 公式マスター")
+st.title("⚡️ 電磁気学 単語・公式マスター")
 
 # サイドバーメニュー（ここで menu を定義）
 menu = st.sidebar.radio("メニュー", ["クイズに挑戦", "復習モード", "苦手リストと解説"])
