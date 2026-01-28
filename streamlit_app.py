@@ -1,17 +1,23 @@
 import streamlit as st
+from supabase import create_client, Client
 import pandas as pd
 import sqlite3
 import os
 import random
 
-# --- DB設定 ---
+# --- 1. Supabase の初期化 ---
+# Streamlit Secrets (Community Cloudの設定画面) に登録した値を使用
+url: str = st.secrets["SUPABASE_URL"]
+key: str = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(url, key)
+
+# --- DB設定 (問題データ用はSQLiteを維持、記録用をSupabaseへ) ---
 def init_db():
     conn = sqlite3.connect('physics_quiz.db', check_same_thread=False)
     c = conn.cursor()
+    # physics_words はアプリ内の問題集なので SQLite のままでOK
     c.execute('''CREATE TABLE IF NOT EXISTS physics_words 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, word TEXT, mean TEXT, explanation TEXT, level INTEGER)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS records 
-                 (word_id INTEGER, is_correct INTEGER, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)''')
     
     if os.path.exists('physics_data.csv'):
         c.execute("SELECT count(*) FROM physics_words")
@@ -28,20 +34,29 @@ conn = init_db()
 
 def get_data(mode='all'):
     if mode == 'review':
-        query = """
-        SELECT DISTINCT w.* FROM physics_words w 
-        JOIN records r ON w.id = r.word_id 
-        WHERE r.is_correct = 0
-        """
+        # --- 2. 復習モードのクエリを Supabase から取得するように変更 ---
+        try:
+            # Supabase から不正解(is_correct=0)のデータを取得
+            response = supabase.table("records").select("word_id").eq("is_correct", 0).execute()
+            wrong_ids = list(set([item['word_id'] for item in response.data]))
+            
+            if not wrong_ids:
+                return pd.DataFrame()
+            
+            # SQLite側の問題データから、該当するIDを抽出
+            query = f"SELECT * FROM physics_words WHERE id IN ({','.join(map(str, wrong_ids))})"
+        except Exception as e:
+            st.error(f"履歴の取得に失敗しました: {e}")
+            return pd.DataFrame()
     else:
         query = "SELECT * FROM physics_words"
+    
     return pd.read_sql(query, conn)
 
 # --- UI設定 ---
 st.set_page_config(page_title="電磁気学マスター", layout="centered")
 st.title("⚡️ 電磁気学 単語・公式マスター")
 
-# サイドバーメニュー（ここで menu を定義）
 menu = st.sidebar.radio("メニュー", ["クイズに挑戦", "復習モード", "苦手リストと解説"])
 
 # --- クイズ・復習モード ---
@@ -51,14 +66,11 @@ if menu in ["クイズに挑戦", "復習モード"]:
     if df.empty:
         st.info("対象のデータがありません。")
     else:
-        # クイズの初期化
         if 'quiz' not in st.session_state:
             q = df.sample(n=1).iloc[0]
-            # 4択作成
             all_means = pd.read_sql("SELECT mean FROM physics_words", conn)['mean'].unique().tolist()
             other_means = [m for m in all_means if m != q['mean']]
             distractors = random.sample(other_means, min(len(other_means), 3))
-            
             options = distractors + [q['mean']]
             random.shuffle(options)
             
@@ -70,34 +82,34 @@ if menu in ["クイズに挑戦", "復習モード"]:
                 "options": options
             }
             st.session_state.answered = False
-            st.session_state.user_choice = None
 
         quiz = st.session_state.quiz
         st.subheader(f"Q: {quiz['word']}")
 
-        # ボタンの表示
         for opt in quiz['options']:
-            # st.session_state.answered が True になると全ボタンが押せなくなる
             if st.button(opt, use_container_width=True, disabled=st.session_state.answered, key=f"opt_{opt}"):
                 st.session_state.answered = True
-                st.session_state.user_choice = opt
-                
-                # 正誤判定
                 is_correct = (opt == quiz['ans'])
-                c = conn.cursor()
-                c.execute("INSERT INTO records (word_id, is_correct) VALUES (?, ?)", (int(quiz['id']), 1 if is_correct else 0))
-                conn.commit()
+                
+                # --- 3. 正誤判定を Supabase に保存 ---
+                try:
+                    data = {
+                        "word_id": int(quiz['id']),
+                        "is_correct": 1 if is_correct else 0
+                    }
+                    supabase.table("records").insert(data).execute()
+                except Exception as e:
+                    st.warning(f"クラウドへの保存に失敗しました(オフライン): {e}")
+                
                 st.session_state.feedback = is_correct
                 st.rerun()
 
-        # 回答後の表示
         if st.session_state.answered:
             if st.session_state.feedback:
                 st.success(f"⭕️ 正解！: {quiz['ans']}")
             else:
                 st.error(f"❌ 不正解！ 正解は: {quiz['ans']}")
             
-            # 詳細解説
             st.info(f"**解説:**\n{quiz['exp']}")
             
             if st.button("次の問題へ ➡️"):
@@ -107,19 +119,22 @@ if menu in ["クイズに挑戦", "復習モード"]:
 # --- 統計・解説モード ---
 elif menu == "苦手リストと解説":
     st.subheader("📚 復習が必要な項目")
-    data = pd.read_sql("""
-        SELECT w.word, w.mean, w.explanation, COUNT(*) as miss_count 
-        FROM records r 
-        JOIN physics_words w ON r.word_id = w.id 
-        WHERE r.is_correct = 0 
-        GROUP BY w.id 
-        ORDER BY miss_count DESC
-    """, conn)
     
-    if data.empty:
-        st.write("まだ間違いはありません。")
-    else:
-        for i, row in data.iterrows():
-            with st.expander(f"{row['word']} (ミス: {row['miss_count']}回)"):
-                st.latex(row['mean'])  # 数式をきれいに表示
-                st.write(f"**解説:** {row['explanation']}")
+    # --- 4. 統計データも Supabase から取得 ---
+    try:
+        res = supabase.table("records").select("word_id").eq("is_correct", 0).execute()
+        if not res.data:
+            st.write("まだ間違いはありません。")
+        else:
+            # ミス回数をカウント
+            miss_df = pd.DataFrame(res.data)
+            counts = miss_df['word_id'].value_counts()
+            
+            for w_id, count in counts.items():
+                # SQLiteから単語情報を取得
+                word_info = pd.read_sql(f"SELECT * FROM physics_words WHERE id = {w_id}", conn).iloc[0]
+                with st.expander(f"{word_info['word']} (ミス: {count}回)"):
+                    st.latex(word_info['mean'])
+                    st.write(f"**解説:** {word_info['explanation']}")
+    except Exception as e:
+        st.error(f"データの取得中にエラーが発生しました: {e}")
