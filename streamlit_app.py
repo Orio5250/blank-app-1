@@ -124,7 +124,9 @@ elif menu == "苦手リストと解説":
                 word_res = supabase.table("physics_words").select("*").eq("id", int(w_id)).single().execute()
                 word_info = word_res.data
                 with st.expander(f"{word_info['word']} (ミス: {count}回)"):
-                    st.latex(word_info['mean'])
+                # st.write(word_info['mean']) ではなく、st.latex() を使う
+                st.latex(word_info['mean'])
+                    
                     st.write(f"**解説:** {word_info['explanation']}")
     except Exception as e:
         st.error(f"データ取得エラー: {e}")
