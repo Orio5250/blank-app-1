@@ -138,3 +138,29 @@ elif menu == "苦手リストと解説":
                     st.write(f"**解説:** {word_info['explanation']}")
     except Exception as e:
         st.error(f"データの取得中にエラーが発生しました: {e}")
+
+import pandas as pd
+import os
+
+def migrate_data():
+    # 1. 既存のCSVファイルを探す
+    csv_file = 'physics_data.csv' 
+    
+    if os.path.exists(csv_file):
+        # 2. Supabase側のデータが空かチェック
+        res = supabase.table("physics_words").select("id", count="exact").limit(1).execute()
+        
+        if res.count == 0:
+            st.info("CSVからSupabaseへデータを移行中...")
+            # 3. CSVを読み込んで送信
+            df = pd.read_csv(csv_file)
+            data = df.to_dict(orient='records')
+            supabase.table("physics_words").insert(data).execute()
+            st.success("移行が完了しました！もうCSVファイルは消しても大丈夫です。")
+        else:
+            st.write("Supabaseには既にデータが存在します。")
+    else:
+        st.error(f"{csv_file} が見つかりません。パスを確認してください。")
+
+# アプリの初期化部分などで呼び出す
+migrate_data()
