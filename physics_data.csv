@@ -99,29 +99,3 @@ word,mean,explanation,level
 "誘導起電力（直線導体）","$V = vBl \sin \theta$","磁束密度 $B$ の中を、長さ $l$ の棒が速度 $v$ で横切るとき、磁力線を切ることで発生する電圧です。",1
 "環状ソレノイドの自己L","$L = \mu n^2 l S$","ドーナツ型の鉄芯に巻かれたコイルのインダクタンス。巻き数の2乗に比例するのが大きな特徴です。",2
 "ブリッジ回路の平衡条件","$R_1 R_4 = R_2 R_3$","ホイートストンブリッジにおいて、中央の検流計に電流が流れない（電位差ゼロ）ための抵抗のバランス条件です。",1
-
-import pandas as pd
-import os
-
-def migrate_data():
-    # 1. 既存のCSVファイルを探す
-    csv_file = 'physics_data.csv' 
-    
-    if os.path.exists(csv_file):
-        # 2. Supabase側のデータが空かチェック
-        res = supabase.table("physics_words").select("id", count="exact").limit(1).execute()
-        
-        if res.count == 0:
-            st.info("CSVからSupabaseへデータを移行中...")
-            # 3. CSVを読み込んで送信
-            df = pd.read_csv(csv_file)
-            data = df.to_dict(orient='records')
-            supabase.table("physics_words").insert(data).execute()
-            st.success("移行が完了しました！もうCSVファイルは消しても大丈夫です。")
-        else:
-            st.write("Supabaseには既にデータが存在します。")
-    else:
-        st.error(f"{csv_file} が見つかりません。パスを確認してください。")
-
-# アプリの初期化部分などで呼び出す
-migrate_data()
