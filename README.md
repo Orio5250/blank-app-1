@@ -1,19 +1,27 @@
-# 🎈 Blank app template
+# ⚡️ 電磁気学マスター (Electromagnetism Quiz App)
 
-A simple Streamlit app template for you to modify!
+電磁気学の公式、単位、法則を効率よく暗記するための、一問一答形式のクイズアプリです。
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+[アプリのURLをここに貼る]
 
-### How to run it on your own machine
+## 🚀 主な機能
+- **レベル別出題**: 基礎からマクスウェル方程式などの発展内容まで選択可能。
+- **解答履歴の永続化**: Supabase（データベース）を使用し、苦手な問題を自動記録。
+- **美しい数式表示**: LaTeXを使用し、物理公式を正確にレンダリング。
+- **苦手リスト**: 過去に間違えた問題だけを抽出して復習可能。
 
-1. Install the requirements
+## 🛠 使用技術
+- **Frontend**: [Streamlit](https://streamlit.io/)
+- **Backend/DB**: [Supabase](https://supabase.com/)
+- **Language**: Python 3.x
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+## 💡 開発のポイント
+- GitHub上にあったCSVデータを初期起動時に自動でSupabaseへ移行する機能を実装しました。
+- `st.latex()` を活用し、物理学において重要な数式の視認性を高めています。
 
-2. Run the app
-
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+## ⚙️ セットアップ方法
+ローカルで実行する場合：
+1. リポジトリをクローン
+2. `pip install -r requirements.txt`
+3. `.streamlit/secrets.toml` にSupabaseのAPI情報を設定
+4. `streamlit run main.py`
