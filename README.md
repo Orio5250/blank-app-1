@@ -4,10 +4,12 @@
 
 [https://blank-app-z5h8gss6zh9.streamlit.app/]
 
+
 ## 🚀 主な機能
 - **レベル別出題**: 基礎からマクスウェル方程式などの発展内容まで選択可能。
 - **解答履歴の永続化**: Supabase（データベース）を使用し、苦手な問題を自動記録。
 - **苦手リスト**: 過去に間違えた問題だけを抽出して復習可能。
+
 
 ## 🛠 使用技術
 - **Frontend**: [Streamlit](https://streamlit.io/)
