@@ -26,3 +26,7 @@
 2. `pip install -r requirements.txt`
 3. `.streamlit/secrets.toml` にSupabaseのAPI情報を設定
 4. `streamlit run main.py`
+
+## ⚡ 今後の改良案
+- アプリ上から覚えたい公式などを入力できる機能の実装
+- より具体的な応用問題の追加
