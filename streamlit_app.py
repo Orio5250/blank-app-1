@@ -145,4 +145,41 @@ elif menu == "苦手リストと解説":
         st.error(f"データ取得エラー: {e}")
 
 
-#####
+############
+import pandas as pd
+from supabase import create_client
+import os
+
+# --- 設定 ---
+CSV_FILE_PATH = "electromagnetics.csv"
+TARGET_TABLE = "electromagnetics_data"  # 既存のテーブルに追加する場合
+
+def migrate_csv_to_supabase():
+    # 1. Supabaseクライアントの初期化
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    # 2. CSVファイルの読み込み
+    if not os.path.exists(CSV_FILE_PATH):
+        print(f"エラー: {CSV_FILE_PATH} が見つかりません。")
+        return
+
+    df = pd.read_csv(CSV_FILE_PATH)
+    
+    # 3. データの整形 (NaNをNoneに変換しないとSupabaseでエラーになることがあります)
+    df = df.where(pd.notnull(df), None)
+    data_to_insert = df.to_dict(orient='records')
+
+    # 4. データの挿入
+    # .upsert() を使うと、IDが重複している場合に上書きし、なければ新規作成します。
+    # これにより、既存データを壊さずに差分更新が可能です。
+    try:
+        print(f"{len(data_to_insert)} 件のデータを移行中...")
+        res = supabase.table(TARGET_TABLE).upsert(data_to_insert).execute()
+        
+        if res.data:
+            print(f"成功: {len(res.data)} 件のデータが '{TARGET_TABLE}' に移行されました。")
+    except Exception as e:
+        print(f"エラーが発生しました: {e}")
+
+if __name__ == "__main__":
+    migrate_csv_to_supabase()
