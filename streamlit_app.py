@@ -146,30 +146,3 @@ elif menu == "苦手リストと解説":
 
 
 #####
-
-def upload_examples_only():
-    try:
-        # 1. 例題CSVのみを読み込む
-        df = pd.read_csv('electromagnetics.csv')
-        
-        # 2. 分野やカテゴリの補完（CSVにない場合）
-        df['field'] = "電磁気学"
-        df['category'] = "example" # 確実にexampleとして投入
-        df = df.fillna("")
-        
-        records = df.to_dict(orient='records')
-
-        # 3. 削除(delete)はせず、追加(insert)のみ実行
-        # 同一の問題が重複するのを防ぎたい場合は .upsert(records, on_conflict="word") を使用
-        res = supabase.table("physics_words").insert(records).execute()
-        
-        st.success(f"例題の追加に成功しました！ ({len(res.data)} 件)")
-        
-    except Exception as e:
-        # もしこれでもエラーが出る場合は、既に同じ 'word' が登録されている可能性があります
-        st.error(f"エラーが発生しました: {e}")
-
-# UI
-if st.button("例題データのみを追加投入"):
-    upload_examples_only()
-
