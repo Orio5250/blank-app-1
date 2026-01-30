@@ -143,3 +143,34 @@ elif menu == "苦手リストと解説":
                     st.write(f"**解説:** {word_info['explanation']}")
     except Exception as e:
         st.error(f"データ取得エラー: {e}")
+
+supabase: Client = create_client(url, key)
+
+def sync_data():
+    """CSVファイルを読み込んでSupabaseへアップロードする"""
+    try:
+        # GitHub上のリポジトリにあるCSVを読み込む
+        # (Streamlit Cloud上では実行ファイルと同じディレクトリにある前提)
+        df = pd.read_csv('electromagnetics.csv')
+        
+        # データのクリーニング
+        df = df.fillna("") # 空白を埋める
+        data_to_insert = df.to_dict(orient='records')
+
+        # 既存データを削除して入れ直す（全入れ替えの場合）
+        # ※ 運用に合わせて .insert() か .upsert() を選択
+        supabase.table("physics_words").delete().neq("id", 0).execute() # 全削除
+        res = supabase.table("physics_words").insert(data_to_insert).execute()
+        
+        st.success(f"同期完了！ {len(res.data)} 件のデータを更新しました。")
+    except Exception as e:
+        st.error(f"同期エラー: {e}")
+
+# --- サイドバーに管理者メニューを作成 ---
+st.sidebar.markdown("---")
+with st.sidebar.expander("🛠 管理者メニュー"):
+    password = st.text_input("パスワードを入力", type="password")
+    if password == st.secrets["ADMIN_PASSWORD"]: # secretsにパスワードを設定しておく
+        if st.button("GitHubのCSVをSupabaseへ同期"):
+            with st.spinner("同期中..."):
+                sync_data()
