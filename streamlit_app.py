@@ -143,6 +143,8 @@ elif menu == "苦手リストと解説":
                     st.write(f"**解説:** {word_info['explanation']}")
     except Exception as e:
         st.error(f"データ取得エラー: {e}")
+
+
 #####
 import streamlit as st
 import pandas as pd
@@ -157,8 +159,7 @@ def sync_github_to_supabase():
         # 1. GitHub上のCSVファイルを読み込む
         # 複数の分野を1つのテーブルで管理するために結合
         files = {
-            "electromagnetics.csv": "電磁気学",
-            "solid_state.csv": "固体物理学"
+            "electromagnetics.csv": "電磁気学"
         }
         
         all_data = []
