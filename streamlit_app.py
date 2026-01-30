@@ -146,47 +146,30 @@ elif menu == "苦手リストと解説":
 
 
 #####
-import streamlit as st
-import pandas as pd
-from supabase import create_client, Client
 
-# --- Supabase接続設定 (接続済みとのことですので、既存の接続オブジェクトを想定) ---
-# supabase = create_client(url, key) 
-
-def sync_github_to_supabase():
-    """GitHub上のCSVファイルをSupabaseへ一括送信する"""
+def upload_examples_only():
     try:
-        # 1. GitHub上のCSVファイルを読み込む
-        # 複数の分野を1つのテーブルで管理するために結合
-        files = {
-            "electromagnetics.csv": "電磁気学"
-        }
+        # 1. 例題CSVのみを読み込む
+        df = pd.read_csv('electromagnetics.csv')
         
-        all_data = []
-        for file_name, field_name in files.items():
-            df = pd.read_csv(file_name)
-            df['field'] = field_name  # 分野を特定するカラムを追加
-            all_data.append(df)
+        # 2. 分野やカテゴリの補完（CSVにない場合）
+        df['field'] = "電磁気学"
+        df['category'] = "example" # 確実にexampleとして投入
+        df = df.fillna("")
         
-        # 結合して辞書形式に変換
-        combined_df = pd.concat(all_data, ignore_index=True).fillna("")
-        records = combined_df.to_dict(orient='records')
+        records = df.to_dict(orient='records')
 
-        # 2. Supabase側のデータを一度クリア（全入れ替えの場合）
-        # 'id' が 0 以上のものをすべて削除
-        supabase.table("physics_words").delete().neq("id", -1).execute()
-
-        # 3. データを送信 (Bulk Insert)
+        # 3. 削除(delete)はせず、追加(insert)のみ実行
+        # 同一の問題が重複するのを防ぎたい場合は .upsert(records, on_conflict="word") を使用
         res = supabase.table("physics_words").insert(records).execute()
         
-        st.success(f"同期成功: {len(res.data)} 件のデータを保存しました！")
+        st.success(f"例題の追加に成功しました！ ({len(res.data)} 件)")
         
     except Exception as e:
+        # もしこれでもエラーが出る場合は、既に同じ 'word' が登録されている可能性があります
         st.error(f"エラーが発生しました: {e}")
 
-# --- 管理用UIボタン ---
-st.title("Admin Dashboard")
-if st.button("GitHubから最新データを同期する"):
-    with st.spinner("同期中..."):
-        sync_github_to_supabase()
+# UI
+if st.button("例題データのみを追加投入"):
+    upload_examples_only()
 
