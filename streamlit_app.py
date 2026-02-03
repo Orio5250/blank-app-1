@@ -9,6 +9,10 @@ TABLE_WORDS = "physics_words"       # 単語クイズで使っているテーブ
 TABLE_PROBLEMS = "electromagnetics"     # 例題クイズで使う「もう一つのテーブル名」
 TABLE_RECORDS = "records"               # 記録用テーブル名
 
+url: str = st.secrets["SUPABASE_URL"]
+key: str = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(url, key)
+
 # --- 2. データ取得関数 (デバッグ機能付き) ---
 def get_data(mode, level_filter):
     # モードによって使うテーブルを切り替える
