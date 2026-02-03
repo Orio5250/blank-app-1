@@ -30,73 +30,100 @@ def get_physics_data(mode, level_filter="すべて"):
 # --- 3. UI設定 ---
 st.set_page_config(page_title="電磁気マスター", layout="centered")
 
-# サイドバーの難易度設定（エラーを修正）
+# サイドバーでの設定
+st.sidebar.header("⚙️ 学習設定")
+study_mode = st.sidebar.selectbox("クイズモードを選択", ["単語クイズ", "例題クイズ"])
+
 level_display = { "すべて": "すべて", 1: "1: 基礎", 2: "2: 応用" }
-study_mode = st.sidebar.selectbox("クイズモード", ["単語クイズ", "例題クイズ"])
 level_selection = st.sidebar.selectbox(
     "難易度を選択", 
     options=["すべて", 1, 2], 
     format_func=lambda x: level_display[x]
 )
 
-st.title(f"⚡️ {study_mode}")
+# クイズ開始フラグの管理
+if 'started' not in st.session_state:
+    st.session_state.started = False
 
-# --- 4. クイズロジック ---
-df = get_physics_data(study_mode, level_selection)
+# --- 4. メイン画面の表示切り替え ---
+if not st.session_state.started:
+    # --- スタート画面 ---
+    st.title("⚡️ 電磁気学クイズ")
+    st.write(f"現在の設定:")
+    st.write(f"- モード: **{study_mode}**")
+    st.write(f"- 難易度: **{level_display[level_selection]}**")
+    
+    if st.button("クイズを開始する 🚀", use_container_width=True):
+        st.session_state.started = True
+        st.rerun()
 
-if df.empty:
-    st.warning("データが見つかりません。")
 else:
-    if 'last_mode' in st.session_state and st.session_state.last_mode != study_mode:
+    # --- クイズ本編 ---
+    st.title(f"⚡️ {study_mode}")
+    
+    # 戻るボタン（設定を変えたい時用）
+    if st.sidebar.button("⚙️ 設定画面に戻る"):
+        st.session_state.started = False
         if 'quiz' in st.session_state: del st.session_state.quiz
-    st.session_state.last_mode = study_mode
+        st.rerun()
 
-    if 'quiz' not in st.session_state:
-        q = df.sample(n=1).iloc[0]
-        
-        # モードに応じて「選択肢の元ネタ」を変える
-        target_choice_table = TABLE_WORDS if study_mode == "単語クイズ" else TABLE_PROBLEMS
-        choice_res = supabase.table(target_choice_table).select("mean").execute()
-        
-        all_means = list(set([item['mean'] for item in choice_res.data if item['mean']]))
-        other_means = [m for m in all_means if m != q['mean']]
-        distractors = random.sample(other_means, min(len(other_means), 3))
-        
-        options = distractors + [q['mean']]
-        random.shuffle(options)
-        
-        st.session_state.quiz = {
-            "q_text": q.get('word', ''),
-            "ans": q.get('mean', ''),
-            "exp": q.get('explanation', q.get('explanatio', '解説なし')),
-            "options": options
-        }
-        st.session_state.answered = False
+    df = get_physics_data(study_mode, level_selection)
 
-    quiz = st.session_state.quiz
-
-    if study_mode == "単語クイズ":
-        st.subheader("この用語の公式・意味は？")
-        st.title(f"**{quiz['q_text']}**")
+    if df.empty:
+        st.warning("条件に合うデータがありません。設定を変更してください。")
     else:
-        st.subheader("例題の解答として正しいものは？")
-        st.info(quiz['q_text'])
+        # クイズの生成
+        if 'quiz' not in st.session_state:
+            q = df.sample(n=1).iloc[0]
+            
+            # 選択肢の元ネタをモードで分ける
+            target_choice_table = TABLE_WORDS if study_mode == "単語クイズ" else TABLE_PROBLEMS
+            choice_res = supabase.table(target_choice_table).select("mean").execute()
+            
+            all_means = list(set([item['mean'] for item in choice_res.data if item['mean']]))
+            other_means = [m for m in all_means if m != q['mean']]
+            distractors = random.sample(other_means, min(len(other_means), 3))
+            
+            options = distractors + [q['mean']]
+            random.shuffle(options)
+            
+            st.session_state.quiz = {
+                "q_text": q.get('word', ''),
+                "ans": q.get('mean', ''),
+                "exp": q.get('explanation', q.get('explanatio', '解説なし')),
+                "options": options
+            }
+            st.session_state.answered = False
 
-    for opt in quiz['options']:
-        if st.button(opt, use_container_width=True, disabled=st.session_state.answered, key=f"btn_{opt}"):
-            st.session_state.answered = True
-            st.session_state.is_correct = (opt == quiz['ans'])
-            st.rerun()
+        quiz = st.session_state.quiz
 
-    if st.session_state.answered:
-        if st.session_state.is_correct:
-            st.success("⭕️ 正解！")
+        # 問題の表示
+        if study_mode == "単語クイズ":
+            st.subheader("この用語の公式・意味は？")
+            st.title(f"**{quiz['q_text']}**")
         else:
-            st.error(f"❌ 不正解... 正解は: {quiz['ans']}")
-        
-        st.markdown("#### ✅ 解説")
-        st.latex(str(quiz['exp']).replace('$', ''))
+            st.subheader("例題の解答として正しいものは？")
+            st.info(quiz['q_text'])
 
-        if st.button("次の問題へ"):
-            del st.session_state.quiz
-            st.rerun()
+        st.write("---")
+
+        # 回答ボタン
+        for opt in quiz['options']:
+            if st.button(opt, use_container_width=True, disabled=st.session_state.answered, key=f"btn_{opt}"):
+                st.session_state.answered = True
+                st.session_state.is_correct = (opt == quiz['ans'])
+                st.rerun()
+
+        # 正誤判定
+        if st.session_state.answered:
+            if st.session_state.is_correct:
+                st.success("⭕️ 正解！")
+            else:
+                st.error(f"❌ 不正解... 正解は: {quiz['ans']}")
+            
+            st.markdown("#### ✅ 解説")
+            st.latex(str(quiz['exp']).replace('$', ''))
+
+            if st.button("次の問題へ ➡️"):
+                del st.session_state.quiz
+                st.rerun()
