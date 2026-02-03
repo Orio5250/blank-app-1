@@ -3,27 +3,32 @@ from supabase import create_client, Client
 import pandas as pd
 import random
 
-# --- 1. Supabase の設定 ---
-# 実際のテーブル名に書き換えてください
-TABLE_WORDS = "physics_words"      
-TABLE_PROBLEMS = "electromagnetics" 
-TABLE_RECORDS = "records"                    
+# --- 1. テーブル名の設定 (ここを絶対に書き換える) ---
+# SupabaseのTable Editorで左側に表示されている正確な名前を入れてください
+TABLE_WORDS = "physics_words"       # 単語クイズで使っているテーブル名
+TABLE_PROBLEMS = "electromagnetics"     # 例題クイズで使う「もう一つのテーブル名」
+TABLE_RECORDS = "records"               # 記録用テーブル名
 
-url: str = st.secrets["SUPABASE_URL"]
-key: str = st.secrets["SUPABASE_KEY"]
-supabase: Client = create_client(url, key)
-
-# --- 2. データ取得関数 ---
+# --- 2. データ取得関数 (デバッグ機能付き) ---
 def get_data(mode, level_filter):
+    # モードによって使うテーブルを切り替える
     table = TABLE_WORDS if mode == "単語クイズ" else TABLE_PROBLEMS
+    
     try:
         query = supabase.table(table).select("*")
         if level_filter != "すべて":
             query = query.eq("level", level_filter)
         res = query.execute()
+        
+        # もしデータが0件ならエラーではなく警告を出す
+        if not res.data:
+            st.sidebar.warning(f"⚠️ テーブル '{table}' にデータがありません")
+            return pd.DataFrame()
+            
         return pd.DataFrame(res.data)
     except Exception as e:
-        st.error(f"取得エラー: {e}")
+        # テーブル名が間違っているとここでエラーが出る
+        st.error(f"❌ 取得エラー (テーブル名: {table}): {e}")
         return pd.DataFrame()
 
 # --- 3. UI設定 ---
