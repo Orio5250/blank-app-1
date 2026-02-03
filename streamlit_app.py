@@ -30,7 +30,7 @@ def get_physics_data(mode, level_filter="すべて"):
 # --- 3. UI設定 ---
 st.set_page_config(page_title="電磁気マスター", layout="centered")
 study_mode = st.sidebar.selectbox("クイズモード", ["単語クイズ", "例題クイズ"])
-level_selection = st.sidebar.selectbox("難易度を選択", ["すべて", 1, 2])
+level_selection = st.sidebar.selectbox("難易度を選択", ["すべて", 1, 2], "1: 基礎", "2: 応用")
 
 st.title(f"⚡️ {study_mode}")
 
