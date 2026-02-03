@@ -113,4 +113,19 @@ else:
                         st.session_state.wrong_list.append(quiz['raw_data'])
                 # 正解して、かつ復習モードならリストから削除
                 elif st.session_state.is_correct and study_mode == "🔥 復習モード":
-                    st.session_state.wrong_list = [item for item in st.
+                    st.session_state.wrong_list = [item for item in st.session_state.wrong_list if item.get('word') != quiz['q_text']]
+                
+                st.rerun()
+
+        if st.session_state.answered:
+            if st.session_state.is_correct:
+                st.success("⭕️ 正解！")
+            else:
+                st.error(f"❌ 不正解... (復習リストに追加されました)")
+            
+            st.markdown("#### ✅ 解説")
+            st.latex(str(quiz['exp']).replace('$', ''))
+
+            if st.button("次の問題へ ➡️"):
+                del st.session_state.quiz
+                st.rerun()
