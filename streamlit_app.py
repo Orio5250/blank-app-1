@@ -15,13 +15,12 @@ TABLE_PROBLEMS = "electromagnetics"
 if 'started' not in st.session_state:
     st.session_state.started = False
 if 'wrong_list' not in st.session_state:
-    st.session_state.wrong_list = [] # 間違えた問題を保存するリスト
+    st.session_state.wrong_list = [] 
 
 # --- 3. UI設定 ---
 st.set_page_config(page_title="電磁気マスター", layout="centered")
 
 st.sidebar.header("⚙️ 学習設定")
-# モードに「復習モード」を追加
 mode_options = ["単語クイズ", "例題クイズ"]
 if st.session_state.wrong_list:
     mode_options.append("🔥 復習モード")
@@ -55,10 +54,8 @@ else:
 
     # --- データ取得ロジック ---
     if study_mode == "🔥 復習モード":
-        # 復習モードなら、間違えたリストからデータフレーム作成
         df = pd.DataFrame(st.session_state.wrong_list)
     else:
-        # 通常モードならSupabaseから取得
         try:
             target_table = TABLE_WORDS if study_mode == "単語クイズ" else TABLE_PROBLEMS
             res = supabase.table(target_table).select("*").execute()
@@ -76,13 +73,14 @@ else:
             st.session_state.started = False
             st.rerun()
     else:
-        # クイズ生成
         if 'quiz' not in st.session_state:
             q = df.sample(n=1).iloc[0]
             
             # 選択肢の生成
-            target_choice_table = TABLE_WORDS if study_mode != "例題クイズ" else TABLE_PROBLEMS
-            choice_res = supabase.table(target_choice_table).select("mean").execute()
+            # 復習モードの場合は、その問題の元々のテーブルに合わせて選択肢を取得
+            target_table_name = q.get('table_name', TABLE_WORDS if study_mode == "単語クイズ" else TABLE_PROBLEMS)
+            choice_res = supabase.table(target_table_name).select("mean").execute()
+            
             all_means = list(set([item['mean'] for item in choice_res.data if item['mean']]))
             other_means = [m for m in all_means if m != q['mean']]
             distractors = random.sample(other_means, min(len(other_means), 3))
@@ -90,8 +88,12 @@ else:
             options = distractors + [q['mean']]
             random.shuffle(options)
             
+            # 復習リスト保存用にテーブル名を記録しておく
+            q_dict = q.to_dict()
+            q_dict['table_name'] = target_table_name
+
             st.session_state.quiz = {
-                "raw_data": q.to_dict(), # 復習用に全データを保存
+                "raw_data": q_dict,
                 "q_text": q.get('word', ''),
                 "ans": q.get('mean', ''),
                 "exp": q.get('explanation', q.get('explanatio', '解説なし')),
@@ -100,18 +102,26 @@ else:
             st.session_state.answered = False
 
         quiz = st.session_state.quiz
-        st.info(quiz['q_text']) if study_mode != "単語クイズ" else st.title(f"**{quiz['q_text']}**")
+
+        # 【修正箇所】表示を安全なif文に変更
+        if study_mode == "単語クイズ":
+            st.subheader("この用語の公式・意味は？")
+            st.title(f"**{quiz['q_text']}**")
+        else:
+            st.subheader("例題の解答として正しいものは？")
+            st.info(quiz['q_text'])
+
+        st.write("---")
 
         for opt in quiz['options']:
             if st.button(opt, use_container_width=True, disabled=st.session_state.answered, key=f"btn_{opt}"):
                 st.session_state.answered = True
                 st.session_state.is_correct = (opt == quiz['ans'])
                 
-                # 間違えたらリストに追加（重複チェック付き）
                 if not st.session_state.is_correct:
-                    if quiz['raw_data'] not in st.session_state.wrong_list:
+                    # まだリストにない場合のみ追加
+                    if not any(d.get('word') == quiz['q_text'] for d in st.session_state.wrong_list):
                         st.session_state.wrong_list.append(quiz['raw_data'])
-                # 正解して、かつ復習モードならリストから削除
                 elif st.session_state.is_correct and study_mode == "🔥 復習モード":
                     st.session_state.wrong_list = [item for item in st.session_state.wrong_list if item.get('word') != quiz['q_text']]
                 
