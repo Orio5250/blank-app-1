@@ -29,8 +29,15 @@ def get_physics_data(mode, level_filter="すべて"):
 
 # --- 3. UI設定 ---
 st.set_page_config(page_title="電磁気マスター", layout="centered")
+
+# サイドバーの難易度設定（エラーを修正）
+level_display = { "すべて": "すべて", 1: "1: 基礎", 2: "2: 応用" }
 study_mode = st.sidebar.selectbox("クイズモード", ["単語クイズ", "例題クイズ"])
-level_selection = st.sidebar.selectbox("難易度を選択", ["すべて", 1, 2], "1: 基礎", "2: 応用")
+level_selection = st.sidebar.selectbox(
+    "難易度を選択", 
+    options=["すべて", 1, 2], 
+    format_func=lambda x: level_display[x]
+)
 
 st.title(f"⚡️ {study_mode}")
 
@@ -47,17 +54,11 @@ else:
     if 'quiz' not in st.session_state:
         q = df.sample(n=1).iloc[0]
         
-        # --- 【ここがポイント！】モードに応じて選択肢の「元ネタ」を変える ---
-        if study_mode == "単語クイズ":
-            # 単語テーブルの mean 列から選択肢を作る
-            choice_res = supabase.table(TABLE_WORDS).select("mean").execute()
-        else:
-            # 例題テーブルの mean 列から選択肢を作る
-            choice_res = supabase.table(TABLE_PROBLEMS).select("mean").execute()
+        # モードに応じて「選択肢の元ネタ」を変える
+        target_choice_table = TABLE_WORDS if study_mode == "単語クイズ" else TABLE_PROBLEMS
+        choice_res = supabase.table(target_choice_table).select("mean").execute()
         
         all_means = list(set([item['mean'] for item in choice_res.data if item['mean']]))
-        
-        # 正解を除いたリストからダミーを3つ選ぶ
         other_means = [m for m in all_means if m != q['mean']]
         distractors = random.sample(other_means, min(len(other_means), 3))
         
