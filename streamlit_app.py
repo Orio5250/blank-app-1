@@ -3,70 +3,73 @@ from supabase import create_client, Client
 import pandas as pd
 import random
 
-# --- 1. テーブル名の設定 (ここを絶対に書き換える) ---
-# SupabaseのTable Editorで左側に表示されている正確な名前を入れてください
-TABLE_WORDS = "physics_words"       # 単語クイズで使っているテーブル名
-TABLE_PROBLEMS = "electromagnetics"     # 例題クイズで使う「もう一つのテーブル名」
-TABLE_RECORDS = "records"               # 記録用テーブル名
-
+# --- 1. Supabase の初期化 ---
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
-# --- 2. データ取得関数 (デバッグ機能付き) ---
-def get_data(mode, level_filter):
-    # モードによって使うテーブルを切り替える
-    table = TABLE_WORDS if mode == "単語クイズ" else TABLE_PROBLEMS
-    
+# テーブル名は1つだけ指定
+TABLE_NAME = "electromagnetics"
+
+# --- 2. データ取得関数 ---
+def get_physics_data(mode, level_filter="すべて"):
     try:
-        query = supabase.table(table).select("*")
-        if level_filter != "すべて":
-            query = query.eq("level", level_filter)
-        res = query.execute()
+        # まず全データを取得
+        res = supabase.table(TABLE_NAME).select("*").execute()
+        df = pd.DataFrame(res.data)
         
-        # もしデータが0件ならエラーではなく警告を出す
-        if not res.data:
-            st.sidebar.warning(f"⚠️ テーブル '{table}' にデータがありません")
-            return pd.DataFrame()
+        if df.empty:
+            return df
+
+        # --- モードによるフィルタリング ---
+        # 画像に基づき、categoryが 'example' なら例題、それ以外を単語とみなす
+        if mode == "例題クイズ":
+            df = df[df['category'] == 'example']
+        else:
+            df = df[df['category'] != 'example']
+
+        # --- レベルによるフィルタリング ---
+        if level_filter != "すべて":
+            df = df[df['level'].astype(str) == str(level_filter)]
             
-        return pd.DataFrame(res.data)
+        return df
     except Exception as e:
-        # テーブル名が間違っているとここでエラーが出る
-        st.error(f"❌ 取得エラー (テーブル名: {table}): {e}")
+        st.error(f"データ取得エラー: {e}")
         return pd.DataFrame()
 
 # --- 3. UI設定 ---
-st.set_page_config(page_title="電磁気学マスター")
-st.sidebar.header("メニュー")
-study_mode = st.sidebar.selectbox("モード", ["単語クイズ", "例題クイズ"])
-level_sel = st.sidebar.selectbox("レベル", ["すべて", "1", "2"])
+st.set_page_config(page_title="電磁気マスター", layout="centered")
+st.sidebar.header("⚙️ 学習設定")
+study_mode = st.sidebar.selectbox("クイズモード", ["単語クイズ", "例題クイズ"])
+level_selection = st.sidebar.selectbox("難易度を選択", ["すべて", "1", "2"])
 
 st.title(f"⚡️ {study_mode}")
 
-# --- 4. クイズ処理 ---
-df = get_data(study_mode, level_sel)
+# --- 4. クイズロジック ---
+df = get_physics_data(study_mode, level_selection)
 
 if df.empty:
-    st.warning(f"【{study_mode}】テーブルにデータが見つかりません。名前を確認してください。")
+    st.warning(f"該当するデータがありません。")
 else:
     # 状態リセット
-    if "current_mode" not in st.session_state or st.session_state.current_mode != study_mode:
-        st.session_state.current_mode = study_mode
-        if "quiz" in st.session_state: del st.session_state.quiz
+    if 'last_mode' in st.session_state and st.session_state.last_mode != study_mode:
+        if 'quiz' in st.session_state: del st.session_state.quiz
+    st.session_state.last_mode = study_mode
 
-    if "quiz" not in st.session_state:
+    if 'quiz' not in st.session_state:
         q = df.sample(n=1).iloc[0]
         
-        # 選択肢は単語テーブルの 'mean' から作成
-        all_res = supabase.table(TABLE_WORDS).select("mean").execute()
-        all_means = list(set([item['mean'] for item in all_res.data]))
-        other = [m for m in all_means if m != q['mean']]
-        options = random.sample(other, min(len(other), 3)) + [q['mean']]
+        # 選択肢用の全候補を取得
+        all_means = list(set(df['mean'].tolist()))
+        other_means = [m for m in all_means if m != q['mean']]
+        distractors = random.sample(other_means, min(len(other_means), 3))
+        
+        options = distractors + [q['mean']]
         random.shuffle(options)
         
         st.session_state.quiz = {
-            "id": q.get('id'),
-            "q_text": q['word'] if study_mode == "単語クイズ" else q['explanation'],
+            "id": q['id'],
+            "word": q['word'],
             "ans": q['mean'],
             "exp": q['explanation'],
             "options": options
@@ -74,13 +77,17 @@ else:
         st.session_state.answered = False
 
     quiz = st.session_state.quiz
-    st.subheader("問題")
-    if study_mode == "単語クイズ":
-        st.title(f"「{quiz['q_text']}」の公式は？")
-    else:
-        st.info(quiz['q_text']) # 例題を表示
 
-    # ボタン表示
+    # 問題文の表示
+    if study_mode == "単語クイズ":
+        st.subheader("この用語の『公式・意味』を選べ")
+        st.title(f"**{quiz['word']}**")
+    else:
+        st.subheader("この例題に『最も適した解答』を選べ")
+        # 例題モードでは word カラムに入っている「例題：100Vの...」を表示
+        st.info(quiz['word']) 
+
+    # ボタン
     for opt in quiz['options']:
         if st.button(opt, use_container_width=True, disabled=st.session_state.answered, key=opt):
             st.session_state.answered = True
@@ -89,13 +96,16 @@ else:
 
     if st.session_state.answered:
         if st.session_state.is_correct:
-            st.success("⭕️ 正解！")
+            st.success("⭕️ 正解です！")
         else:
             st.error(f"❌ 不正解... 正解は: {quiz['ans']}")
         
-        st.latex(quiz['ans'].replace('$', ''))
-        st.write(f"**解説:** {quiz['exp']}")
-        
-        if st.button("次の問題へ"):
+        st.markdown("#### ✅ 解説・解法")
+        if "$" in str(quiz['exp']):
+            st.latex(quiz['exp'].replace('$', ''))
+        else:
+            st.write(quiz['exp'])
+
+        if st.button("次の問題へ ➡️"):
             del st.session_state.quiz
             st.rerun()
