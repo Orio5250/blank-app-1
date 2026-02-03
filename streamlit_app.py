@@ -3,11 +3,6 @@ from supabase import create_client, Client
 import pandas as pd
 import random
 
-# --- 1. Supabase の初期化 (省略) ---
-url: str = st.secrets["SUPABASE_URL"]
-key: str = st.secrets["SUPABASE_KEY"]
-supabase: Client = create_client(url, key)
-
 # --- 2. データ取得関数 ---
 def get_physics_data(level_filter=None):
     try:
